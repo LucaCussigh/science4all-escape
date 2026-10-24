@@ -24,6 +24,10 @@ type FallingItem = {
   rotation: number;
 };
 
+const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
+const IMG_ARANCIONE = asset('suricato-arancione.png');
+const IMG_OTTANIO = asset('suricato-ottanio.png');
+
 // LA GRANDE FRASE FINALE DIVISA IN ESATTAMENTE 30 PEZZI
 const MASTER_WORDS = [
   "DA", "SOLI", "SI", "CORRE", "VELOCI,",
@@ -249,16 +253,16 @@ export default function App() {
   useEffect(() => {
     if (biasStep === 'memory-intro') {
       const baseCards = [
-        { pairId: 1, team: 'arancioni', job: 'Sentinella', icon: '🔭', img: '/suricato-arancione.png' },
-        { pairId: 2, team: 'arancioni', job: 'Esploratore', icon: '🗺️', img: '/suricato-arancione.png' },
-        { pairId: 3, team: 'arancioni', job: 'Ingegnere', icon: '🛠️', img: '/suricato-arancione.png' },
-        { pairId: 4, team: 'arancioni', job: 'Medico', icon: '🩺', img: '/suricato-arancione.png' },
-        { pairId: 5, team: 'arancioni', job: 'Cacciatore', icon: '🏹', img: '/suricato-arancione.png' },
-        { pairId: 6, team: 'ottanio', job: 'Raccoglitore', icon: '🧺', img: '/suricato-ottanio.png' },
-        { pairId: 7, team: 'ottanio', job: 'Meccanico', icon: '⚙️', img: '/suricato-ottanio.png' },
-        { pairId: 8, team: 'ottanio', job: 'Chimico', icon: '🧪', img: '/suricato-ottanio.png' },
-        { pairId: 9, team: 'ottanio', job: 'Cuoco', icon: '🍲', img: '/suricato-ottanio.png' },
-        { pairId: 10, team: 'ottanio', job: 'Sarto', icon: '🧵', img: '/suricato-ottanio.png' },
+        { pairId: 1, team: 'arancioni', job: 'Sentinella', icon: '🔭', img: IMG_ARANCIONE },
+        { pairId: 2, team: 'arancioni', job: 'Esploratore', icon: '🗺️', img: IMG_ARANCIONE },
+        { pairId: 3, team: 'arancioni', job: 'Ingegnere', icon: '🛠️', img: IMG_ARANCIONE },
+        { pairId: 4, team: 'arancioni', job: 'Medico', icon: '🩺', img: IMG_ARANCIONE },
+        { pairId: 5, team: 'arancioni', job: 'Cacciatore', icon: '🏹', img: IMG_ARANCIONE },
+        { pairId: 6, team: 'ottanio', job: 'Raccoglitore', icon: '🧺', img: IMG_OTTANIO },
+        { pairId: 7, team: 'ottanio', job: 'Meccanico', icon: '⚙️', img: IMG_OTTANIO },
+        { pairId: 8, team: 'ottanio', job: 'Chimico', icon: '🧪', img: IMG_OTTANIO },
+        { pairId: 9, team: 'ottanio', job: 'Cuoco', icon: '🍲', img: IMG_OTTANIO },
+        { pairId: 10, team: 'ottanio', job: 'Sarto', icon: '🧵', img: IMG_OTTANIO },
       ] as const;
 
       const deck = [...baseCards, ...baseCards]
@@ -476,7 +480,7 @@ export default function App() {
       {currentPhase === 'cover-image' && (
         <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in duration-500">
           <img 
-            src="public/img/artcraft_2026-10-24-17-36-18.png" 
+            src={asset('img/artcraft_2026-10-24-17-36-18.png')} 
             alt="Presentazione L'Accademia dei Suricati" 
             className="w-full h-full object-contain"
           />
@@ -701,7 +705,7 @@ export default function App() {
                     <div className="text-7xl font-black text-white px-16 py-10 bg-slate-800 rounded-[3rem] shadow-2xl border-4 border-slate-700">{biasStep === 'iat-block1' ? block1Sequence[iatTrialIndex].content : block2Sequence[iatTrialIndex].content}</div>
                   ) : (
                     <div className="flex flex-col items-center">
-                      <img src={(biasStep === 'iat-block1' ? block1Sequence[iatTrialIndex].content : block2Sequence[iatTrialIndex].content) === 'Arancioni' ? '/suricato-arancione.png' : '/suricato-ottanio.png'} alt="Suricato" className="w-80 h-80 object-cover bg-slate-800 rounded-[3rem] shadow-2xl border-8 border-slate-600" />
+                      <img src={(biasStep === 'iat-block1' ? block1Sequence[iatTrialIndex].content : block2Sequence[iatTrialIndex].content) === 'Arancioni' ? IMG_ARANCIONE : IMG_OTTANIO} alt="Suricato" className="w-80 h-80 object-cover bg-slate-800 rounded-[3rem] shadow-2xl border-8 border-slate-600" />
                       <p className="text-white text-3xl font-bold mt-6 opacity-50 uppercase tracking-widest">Suricati {(biasStep === 'iat-block1' ? block1Sequence[iatTrialIndex].content : block2Sequence[iatTrialIndex].content)}</p>
                     </div>
                   )}
