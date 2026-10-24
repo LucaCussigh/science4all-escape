@@ -85,13 +85,13 @@ export default function App() {
 
   // Stati Fase 3 
   const [biasStep, setBiasStep] = useState<BiasStep>('story');
-  const [preferredWinner, setPreferredWinner] = useState<Team>(null);
-  const [predictedWinner, setPredictedWinner] = useState<Team>(null);
+  const [, setPreferredWinner] = useState<Team>(null);
+  const [, setPredictedWinner] = useState<Team>(null);
   
   // IAT
   const [iatTrialIndex, setIatTrialIndex] = useState(0);
   const [iatError, setIatError] = useState(false);
-  const [iatDifficultyChoice, setIatDifficultyChoice] = useState<string | null>(null);
+  const [, setIatDifficultyChoice] = useState<string | null>(null);
 
   // Memory
   const [cards, setCards] = useState<MemoryCard[]>([]);
@@ -301,9 +301,9 @@ export default function App() {
 
   // MOTORE DI CADUTA PIOGGIA (120 SECONDI)
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-    let spawnId: NodeJS.Timeout;
-    let fallId: NodeJS.Timeout;
+    let intervalId: ReturnType<typeof setInterval>;
+    let spawnId: ReturnType<typeof setInterval>;
+    let fallId: ReturnType<typeof setInterval>;
 
     if (biasStep === 'gonogo-game') {
       setGonogoTimeLeft(120); 
