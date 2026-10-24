@@ -467,7 +467,7 @@ export default function App() {
       
       {currentPhase !== 'select-pc' && currentPhase !== 'cover-image' && (
         <header className="p-4 bg-white shadow-md flex justify-between items-center border-b-4 border-slate-200">
-          <h1 className="text-xl font-bold text-slate-700">L'Accademia dei Suricati</h1>
+          <h1 className="text-xl font-bold text-slate-700">Science 4 All - OSCAR Lab</h1>
           {team && (
             <div className={`px-4 py-2 rounded-full font-bold text-white shadow-sm ${team === 'arancioni' ? 'bg-orange-500' : 'bg-teal-600'}`}>
               PC {pcNumber} di {totalPcs} - Clan {team === 'arancioni' ? 'Arancione' : 'Ottanio'}
@@ -481,7 +481,7 @@ export default function App() {
         <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in duration-500">
           <img 
             src={asset('img/artcraft_2026-10-24-17-36-18.png')} 
-            alt="Presentazione L'Accademia dei Suricati" 
+            alt="Science 4 All" 
             className="w-full h-full object-contain"
           />
           <button 
