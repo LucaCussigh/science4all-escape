@@ -479,11 +479,14 @@ export default function App() {
       {/* NUOVA FASE: Immagine di Copertina a SCHERMO INTERO ASSOLUTO */}
       {currentPhase === 'cover-image' && (
         <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in duration-500">
-          <img 
-            src={asset('img/artcraft_2026-10-24-17-36-18.png')} 
-            alt="Science 4 All" 
-            className="w-full h-full object-contain"
+          
+          {/* Sostituita l'immagine con l'iframe che punta alla cartella demo-3d */}
+          <iframe 
+            src={asset('demo-3d/index.html')} 
+            title="Unity 3D Demo"
+            className="w-full h-full border-none"
           />
+
           <button 
             onClick={() => setCurrentPhase('intro')} 
             className={`absolute bottom-12 px-16 py-6 text-white font-black rounded-full text-3xl uppercase tracking-widest shadow-2xl transition-transform hover:scale-105 border-4 border-white/20 hover:border-white/50 ${team === 'arancioni' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-teal-500 hover:bg-teal-600'}`}
