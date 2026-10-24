@@ -1,0 +1,37 @@
+[
+  {
+    "pairId": 1,
+    "icon": "⭐",
+    "iconName": "Stella",
+    "partA": "Da soli si va veloci,",
+    "partB": "ma insieme si va lontano."
+  },
+  {
+    "pairId": 2,
+    "icon": "🌵",
+    "iconName": "Cactus",
+    "partA": "I nostri occhi vedono i dettagli,",
+    "partB": "i vostri vedono l'orizzonte."
+  },
+  {
+    "pairId": 3,
+    "icon": "☀️",
+    "iconName": "Sole",
+    "partA": "Nessun suricato si salva da solo,",
+    "partB": "il clan è la vera forza."
+  },
+  {
+    "pairId": 4,
+    "icon": "💧",
+    "iconName": "Goccia",
+    "partA": "Unire le nostre differenze",
+    "partB": "è la chiave per sbloccare l'acqua."
+  },
+  {
+    "pairId": 5,
+    "icon": "🐾",
+    "iconName": "Impronta",
+    "partA": "Se restiamo divisi nel deserto,",
+    "partB": "le risorse finiscono per tutti."
+  }
+]
