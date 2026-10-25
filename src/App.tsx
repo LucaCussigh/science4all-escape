@@ -797,7 +797,7 @@ export default function App() {
                 </div>
                 <div className="bg-amber-50 p-8 rounded-3xl border-2 border-amber-200 mt-8">
                   <p className="text-2xl text-slate-700 leading-relaxed font-medium">
-                    Lo sapevi? Spesso notiamo meglio i dettagli dei membri del <strong>nostro gruppo</strong> e troviamo le loro coppie con meno errori, mentre tendiamo a confondere quelli degli altri gruppi pensando che "siano tutti uguali".
+                    Lo sapevi? Spesso notiamo in maniera diversa il <strong>nostro gruppo e gli altri gruppi</strong> e troviamo le loro coppie con molti meno o molti più errori.
                   </p>
                 </div>
                 <button onClick={() => setBiasStep('gonogo-intro')} className={`mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg ${team === 'arancioni' ? 'bg-orange-500' : 'bg-teal-500'}`}>
