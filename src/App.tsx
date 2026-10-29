@@ -1,18 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+
+const arancioniImages = [
+  '/img/Avatar_lettore arancione.jpg',
+  '/img/Avatar_natale arancione.jpg',
+  '/img/fantasma_arancione.jpg',
+  '/img/marinaio_arancione.jpg',
+  '/img/pasticcere_arancione.jpeg',
+  '/img/fata_arancione.jpeg',
+  '/img/guerriero_arancione.jpg',
+  '/img/jazzista_arancione.jpg',
+  '/img/stilista_arancione.jpg', 
+  '/img/supereroe_arancione.jpeg' 
+];
+
+const ottanioImages = [
+  '/img/Avatar_lettore ottanio.jpg',
+  '/img/Avatar_natale ottanio.jpg',
+  '/img/fantasma_ottanio.jpg',
+  '/img/marinaio_ottanio.jpg',
+  '/img/pasticcere_ottanio.jpeg',
+  '/img/fata_ottanio.jpeg',
+  '/img/guerriero_ottanio.jpg',
+  '/img/jazzista_ottanio.jpg',
+  '/img/stilista_ottanio.jpg',
+  '/img/supereroe_ottanio.jpeg'
+];
+
+// Funzione per estrarre un'immagine casuale dall'array
+// Il sito è servito sotto la base di Vite (/science4all-escape/), quindi "/img/..." da solo darebbe 404
+const resolveImg = (path: string) => encodeURI(`${import.meta.env.BASE_URL}${path.replace(/^\//, '')}`);
+const getRandomImg = (arr: string[]) => resolveImg(arr[Math.floor(Math.random() * arr.length)]);
 
 // Tipi
-type GamePhase = 'select-pc' | 'cover-image' | 'intro' | 'phase-1' | 'phase-2' | 'phase-3' | 'phase-4' | 'phase-5';
-type Team = 'arancioni' | 'ottanio' | null;
+type GamePhase = 'select-pc' | 'cover-image' | 'intro' | 'phase-1' | 'phase-2' | 'phase-3' | 'emergency-story' | 'phase-4' | 'phase-5';
+type Team = 'arancioni' | 'blu' | null;
 type BiasStep = 'story' | 'preference' | 'prediction' | 'iat-intro' | 'iat-block1' | 'iat-interlude' | 'iat-block2' | 'iat-feedback' | 'memory-intro' | 'memory-game' | 'memory-feedback' | 'gonogo-intro' | 'gonogo-game' | 'gonogo-loading' | 'gonogo-result';
 
-type MemoryCard = {
-  uniqueId: number;
-  pairId: number;
-  team: 'arancioni' | 'ottanio';
-  job: string;
-  icon: string;
-  img: string;
-};
+interface MemoryCard {
+  id: number;
+  pairId: string;
+  team: Team;
+  image: string;
+}
 
 type FallingItem = {
   id: number;
@@ -25,17 +54,26 @@ type FallingItem = {
 };
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
-const IMG_ARANCIONE = asset('suricato-arancione.png');
-const IMG_OTTANIO = asset('suricato-ottanio.png');
 
-// LA GRANDE FRASE FINALE DIVISA IN ESATTAMENTE 30 PEZZI
+// LA GRANDE FRASE FINALE DIVISA IN ESATTAMENTE 31 PEZZI (aggiunta la parola "MOLTO")
 const MASTER_WORDS = [
   "DA", "SOLI", "SI", "CORRE", "VELOCI,",
-  "MA", "INSIEME", "SI", "VA", "PIÙ",
-  "LONTANO.", "L'ACQUA", "NON", "È", "DI",
-  "UN", "SOLO", "CLAN,", "MA", "È",
-  "DI", "TUTTI.", "UNIAMO", "LE", "FORZE",
-  "E", "SALVIAMO", "LA", "NOSTRA", "OASI!"
+  "MA", "INSIEME", "SI", "VA", "MOLTO",
+  "PIÙ", "LONTANO.", "L'ACQUA", "NON", "È",
+  "DI", "UN", "SOLO", "CLAN,", "MA",
+  "È", "DI", "TUTTI.", "UNIAMO", "LE",
+  "FORZE", "E", "SALVIAMO", "LA", "NOSTRA", "OASI!"
+];
+
+// LISTA FISSA DELLE POSTAZIONI (Appare casuale, ma sarà SEMPRE identica su ogni PC)
+const FIXED_TEAMS: Team[] = [
+  'arancioni', 'blu', 'blu', 'arancioni', 'arancioni', // PC 1-5
+  'blu', 'arancioni', 'blu', 'blu', 'arancioni', // PC 6-10
+  'blu', 'arancioni', 'arancioni', 'blu', 'arancioni', // PC 11-15
+  'blu', 'blu', 'arancioni', 'arancioni', 'blu', // PC 16-20
+  'arancioni', 'blu', 'arancioni', 'blu', 'arancioni', // PC 21-25
+  'arancioni', 'blu', 'blu', 'arancioni', 'blu', // PC 26-30
+  'arancioni' // PC 31
 ];
 
 // FUNZIONE DI MESCOLAMENTO SINCRONIZZATO (PRNG deterministico)
@@ -73,6 +111,7 @@ function getScatteredChunks(totalPcs: number) {
   return shuffled;
 }
 
+
 export default function App() {
   const [currentPhase, setCurrentPhase] = useState<GamePhase>('select-pc');
   const [totalPcs, setTotalPcs] = useState<number>(20); 
@@ -81,11 +120,78 @@ export default function App() {
   
   // Stati Fase 1 (Gruppi Minimi)
   const [sortingStep, setSortingStep] = useState<'instructions' | 'image' | 'choice' | 'loading' | 'result'>('instructions');
+  const [sortingTrial, setSortingTrial] = useState<number>(1); // NUOVO STATO
   const [timeLeft, setTimeLeft] = useState(10); 
+  const sortingTrialsData = {
+    1: {
+      title: "Test 1: Gli Insetti",
+      bg: "bg-amber-100",
+      borderColor: "border-amber-300",
+      icon: "🌿",
+      question: "Quanti insetti c'erano esattamente?",
+      options: [23, 27, 31, 36],
+      dotCount: 40
+    },
+    2: {
+      title: "Test 2: I Sassi nel Deserto",
+      bg: "bg-orange-100",
+      borderColor: "border-orange-300",
+      icon: "🪨",
+      question: "Quanti sassi c'erano esattamente?",
+      options: [18, 24, 29, 33],
+      dotCount: 30
+    },
+    3: {
+      title: "Test 3: Le Gocce d'Acqua",
+      bg: "bg-cyan-100",
+      borderColor: "border-cyan-300",
+      icon: "💧",
+      question: "Quante gocce c'erano esattamente?",
+      options: [42, 48, 53, 58],
+      dotCount: 50
+    }
+  };
+
+  const currentTrialData = sortingTrialsData[sortingTrial as keyof typeof sortingTrialsData];
 
   // Stati Fase 2 (Conformismo)
-  const [conformityStep, setConformityStep] = useState<'question' | 'feedback'>('question');
-  const [conformed, setConformed] = useState<boolean | null>(null);
+  const [conformityStep, setConformityStep] = useState<'intro' | 'question' | 'feedback'>('intro');
+  const [conformityTrial, setConformityTrial] = useState<number>(1);
+  const [, setConformityScore] = useState<number>(0);
+
+  const conformityTrialsData = {
+    1: {
+      topic: "Il Cibo Preferito",
+      arancioniPrefers: "il Fico d'India 🍅",
+      bluPrefers: "la Bacca Dolce 🫐",
+      options: [
+        { id: "la Bacca Dolce 🫐", icon: "🫐", label: "Bacca Dolce" },
+        { id: "il Fico d'India 🍅", icon: "🍅", label: "Fico d'India" }
+      ]
+    },
+    2: {
+      topic: "Il Gioco Preferito",
+      arancioniPrefers: "giocare a Nascondino 🙈",
+      bluPrefers: "fare Gare di scavo 🕳️",
+      options: [
+        { id: "giocare a Nascondino 🙈", icon: "🙈", label: "Nascondino" },
+        { id: "fare Gare di scavo 🕳️", icon: "🕳️", label: "Gare di scavo" }
+      ]
+    },
+    3: {
+      topic: "Il Momento di Riposo",
+      arancioniPrefers: "riposare al caldo sotto il Sole ☀️",
+      bluPrefers: "riposare al fresco all'Ombra 🌴",
+      options: [
+        { id: "riposare al caldo sotto il Sole ☀️", icon: "☀️", label: "Al Sole" },
+        { id: "riposare al fresco all'Ombra 🌴", icon: "🌴", label: "All'Ombra" }
+      ]
+    }
+  };
+
+  const currentConformity = conformityTrialsData[conformityTrial as keyof typeof conformityTrialsData];
+  // Determina in automatico la preferenza in base alla squadra assegnata
+  const ingroupPreference = team === 'arancioni' ? currentConformity?.arancioniPrefers : currentConformity?.bluPrefers;
 
   // Stati Fase 3 
   const [biasStep, setBiasStep] = useState<BiasStep>('story');
@@ -94,15 +200,19 @@ export default function App() {
   
   // IAT
   const [iatTrialIndex, setIatTrialIndex] = useState(0);
+  const [iatCountdown, setIatCountdown] = useState(0);
   const [iatError, setIatError] = useState(false);
   const [, setIatDifficultyChoice] = useState<string | null>(null);
 
   // Memory
   const [cards, setCards] = useState<MemoryCard[]>([]);
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
-  const [matchedPairs, setMatchedPairs] = useState<number[]>([]);
-  const [ingroupErrors, setIngroupErrors] = useState(0);
-  const [outgroupErrors, setOutgroupErrors] = useState(0);
+  const [matchedPairs, setMatchedPairs] = useState<string[]>([]);
+  
+  // NUOVI STATI PER GLI ERRORI
+  const [withinCategoryErrors, setWithinCategoryErrors] = useState(0); // Stesso clan, carte sbagliate (Entro)
+  const [betweenCategoryErrors, setBetweenCategoryErrors] = useState(0); // Clan diversi (Tra)
+  
   const [isLocked, setIsLocked] = useState(false);
 
   // Go/No-Go - Caccia al Volo (Pioggia) impostato a 120 secondi (2 minuti)
@@ -112,95 +222,102 @@ export default function App() {
   const [gonogoFlash, setGonogoFlash] = useState<'success' | 'error' | null>(null);
   const [gonogoLoadingReady, setGonogoLoadingReady] = useState(false); 
 
-  const ingroupName = team === 'arancioni' ? 'Arancioni' : 'Ottanio';
-  const outgroupName = team === 'arancioni' ? 'Ottanio' : 'Arancioni';
 
-  // SEQUENZE DA 40 TRIAL PER IL CHILD-IAT
-  const block1Sequence = [
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '😊 Felice', correct: 'left' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '☹️ Triste', correct: 'right' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '😠 Arrabbiato', correct: 'right' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '😃 Sorriso', correct: 'left' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '🎉 Festa', correct: 'left' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '😢 Pianto', correct: 'right' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '😊 Felice', correct: 'left' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '😠 Arrabbiato', correct: 'right' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '☹️ Triste', correct: 'right' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '😃 Sorriso', correct: 'left' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '🎉 Festa', correct: 'left' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '😢 Pianto', correct: 'right' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '😊 Felice', correct: 'left' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '☹️ Triste', correct: 'right' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '😠 Arrabbiato', correct: 'right' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '😃 Sorriso', correct: 'left' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '🎉 Festa', correct: 'left' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '😢 Pianto', correct: 'right' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '😊 Felice', correct: 'left' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '☹️ Triste', correct: 'right' }
-  ];
+  const block1Sequence = useMemo(() => {
+    const inImages = team === 'arancioni' ? arancioniImages : ottanioImages;
+    const outImages = team === 'arancioni' ? ottanioImages : arancioniImages;
 
-  const block2Sequence = [
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '☹️ Triste', correct: 'left' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '😊 Felice', correct: 'right' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '😃 Sorriso', correct: 'right' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '😠 Arrabbiato', correct: 'left' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '😢 Pianto', correct: 'left' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '🎉 Festa', correct: 'right' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '☹️ Triste', correct: 'left' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '😃 Sorriso', correct: 'right' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '😊 Felice', correct: 'right' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '😠 Arrabbiato', correct: 'left' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '😢 Pianto', correct: 'left' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '🎉 Festa', correct: 'right' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '☹️ Triste', correct: 'left' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '😊 Felice', correct: 'right' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '😃 Sorriso', correct: 'right' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '😠 Arrabbiato', correct: 'left' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '😢 Pianto', correct: 'left' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '🎉 Festa', correct: 'right' },
-    { type: 'image', content: outgroupName, correct: 'right' },
-    { type: 'text', content: '☹️ Triste', correct: 'left' },
-    { type: 'image', content: ingroupName, correct: 'left' },
-    { type: 'text', content: '😊 Felice', correct: 'right' }
-  ];
+    return [
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '😊 Felice', correct: 'left' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '☹️ Triste', correct: 'right' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '😠 Arrabbiato', correct: 'right' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '😃 Sorriso', correct: 'left' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '🎉 Festa', correct: 'left' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '😢 Pianto', correct: 'right' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '😊 Felice', correct: 'left' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '😠 Arrabbiato', correct: 'right' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '☹️ Triste', correct: 'right' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '😃 Sorriso', correct: 'left' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '🎉 Festa', correct: 'left' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '😢 Pianto', correct: 'right' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '😊 Felice', correct: 'left' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '☹️ Triste', correct: 'right' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '😠 Arrabbiato', correct: 'right' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '😃 Sorriso', correct: 'left' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '🎉 Festa', correct: 'left' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '😢 Pianto', correct: 'right' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '😊 Felice', correct: 'left' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '☹️ Triste', correct: 'right' }
+    ];
+  }, [team]);
+
+  const block2Sequence = useMemo(() => {
+    const inImages = team === 'arancioni' ? arancioniImages : ottanioImages;
+    const outImages = team === 'arancioni' ? ottanioImages : arancioniImages;
+
+    return [
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '☹️ Triste', correct: 'left' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '😊 Felice', correct: 'right' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '😃 Sorriso', correct: 'right' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '😠 Arrabbiato', correct: 'left' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '😢 Pianto', correct: 'left' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '🎉 Festa', correct: 'right' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '☹️ Triste', correct: 'left' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '😃 Sorriso', correct: 'right' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '😊 Felice', correct: 'right' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '😠 Arrabbiato', correct: 'left' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '😢 Pianto', correct: 'left' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '🎉 Festa', correct: 'right' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '☹️ Triste', correct: 'left' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '😊 Felice', correct: 'right' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '😃 Sorriso', correct: 'right' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '😠 Arrabbiato', correct: 'left' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '😢 Pianto', correct: 'left' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '🎉 Festa', correct: 'right' },
+      { type: 'image', content: getRandomImg(outImages), correct: 'right' },
+      { type: 'text', content: '☹️ Triste', correct: 'left' },
+      { type: 'image', content: getRandomImg(inImages), correct: 'left' },
+      { type: 'text', content: '😊 Felice', correct: 'right' }
+    ];
+  }, [team]);
 
   useEffect(() => {
     if (sortingStep === 'image') {
@@ -219,7 +336,21 @@ export default function App() {
     }
   }, [sortingStep]);
 
+  useEffect(() => {
+    if (iatCountdown <= 0) return;
+    const timeoutId = setTimeout(() => setIatCountdown(prev => prev - 1), 1000);
+    return () => clearTimeout(timeoutId);
+  }, [iatCountdown]);
+
+  const startIatBlock = (block: 'iat-block1' | 'iat-block2') => {
+    setIatTrialIndex(0);
+    setIatError(false);
+    setIatCountdown(5);
+    setBiasStep(block);
+  };
+
   const handleIatClick = (side: 'left' | 'right', currentSequence: any[]) => {
+    if (iatCountdown > 0) return;
     if (currentSequence[iatTrialIndex].correct === side) {
       setIatError(false);
       if (iatTrialIndex + 1 < currentSequence.length) {
@@ -252,28 +383,32 @@ export default function App() {
 
   useEffect(() => {
     if (biasStep === 'memory-intro') {
-      const baseCards = [
-        { pairId: 1, team: 'arancioni', job: 'Sentinella', icon: '🔭', img: IMG_ARANCIONE },
-        { pairId: 2, team: 'arancioni', job: 'Esploratore', icon: '🗺️', img: IMG_ARANCIONE },
-        { pairId: 3, team: 'arancioni', job: 'Ingegnere', icon: '🛠️', img: IMG_ARANCIONE },
-        { pairId: 4, team: 'arancioni', job: 'Medico', icon: '🩺', img: IMG_ARANCIONE },
-        { pairId: 5, team: 'arancioni', job: 'Cacciatore', icon: '🏹', img: IMG_ARANCIONE },
-        { pairId: 6, team: 'ottanio', job: 'Raccoglitore', icon: '🧺', img: IMG_OTTANIO },
-        { pairId: 7, team: 'ottanio', job: 'Meccanico', icon: '⚙️', img: IMG_OTTANIO },
-        { pairId: 8, team: 'ottanio', job: 'Chimico', icon: '🧪', img: IMG_OTTANIO },
-        { pairId: 9, team: 'ottanio', job: 'Cuoco', icon: '🍲', img: IMG_OTTANIO },
-        { pairId: 10, team: 'ottanio', job: 'Sarto', icon: '🧵', img: IMG_OTTANIO },
-      ] as const;
+      // 5 personaggi per clan dagli array già usati nello IAT
+      const selectedArancioni = arancioniImages.slice(0, 5);
+      const selectedBlu = ottanioImages.slice(0, 5);
 
-      const deck = [...baseCards, ...baseCards]
-        .sort(() => Math.random() - 0.5)
-        .map((card, index) => ({ ...card, uniqueId: index }));
+      const deck: MemoryCard[] = [];
+      let idCounter = 0;
+
+      selectedArancioni.forEach((imgUrl, index) => {
+        const pairId = `arancioni_${index}`;
+        deck.push({ id: idCounter++, pairId, team: 'arancioni', image: resolveImg(imgUrl) });
+        deck.push({ id: idCounter++, pairId, team: 'arancioni', image: resolveImg(imgUrl) });
+      });
+
+      selectedBlu.forEach((imgUrl, index) => {
+        const pairId = `blu_${index}`;
+        deck.push({ id: idCounter++, pairId, team: 'blu', image: resolveImg(imgUrl) });
+        deck.push({ id: idCounter++, pairId, team: 'blu', image: resolveImg(imgUrl) });
+      });
+
+      deck.sort(() => Math.random() - 0.5);
 
       setCards(deck);
       setFlippedIndices([]);
       setMatchedPairs([]);
-      setIngroupErrors(0);
-      setOutgroupErrors(0);
+      setWithinCategoryErrors(0); // RESET
+      setBetweenCategoryErrors(0); // RESET
     }
   }, [biasStep]);
 
@@ -293,8 +428,15 @@ export default function App() {
         setIsLocked(false);
         if (matchedPairs.length + 1 === 10) setTimeout(() => setBiasStep('memory-feedback'), 1000);
       } else {
-        if (card1.team === team || card2.team === team) setIngroupErrors(prev => prev + 1);
-        else setOutgroupErrors(prev => prev + 1);
+        // NUOVO CALCOLO ERRORI (Who-said-what)
+        if (card1.team === card2.team) {
+          // Errore ENTRO categoria (stesso colore, ma coppia sbagliata)
+          setWithinCategoryErrors(prev => prev + 1);
+        } else {
+          // Errore TRA categorie (colori diversi)
+          setBetweenCategoryErrors(prev => prev + 1);
+        }
+        
         setTimeout(() => {
           setFlippedIndices([]);
           setIsLocked(false);
@@ -394,7 +536,7 @@ export default function App() {
     };
   }, [biasStep]);
 
-  // GESTIONE TASTI P (Sasso) e Q (Foglia)
+  // GESTIONE TASTI P (Foglia) e Q (Sasso)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (biasStep !== 'gonogo-game') return;
@@ -402,7 +544,8 @@ export default function App() {
       
       if (key === 'p' || key === 'q') {
         e.preventDefault();
-        const targetType = key === 'p' ? 'sasso' : 'foglia';
+        // INVERTITO: Ora la 'q' colpisce il sasso e la 'p' colpisce la foglia
+        const targetType = key === 'q' ? 'sasso' : 'foglia';
 
         setFallingItems(prev => {
           const targetIndex = prev.findIndex(item => item.type === targetType);
@@ -455,9 +598,15 @@ export default function App() {
 
   const handleSelectPc = (num: number) => {
     setPcNumber(num);
-    setTeam(num % 2 !== 0 ? 'arancioni' : 'ottanio'); 
+    setTeam(FIXED_TEAMS[num - 1]); 
     setSortingStep('instructions'); 
-    setConformityStep('question');
+    setSortingTrial(1); 
+    
+    // NUOVI RESET FASE 2
+    setConformityStep('intro');
+    setConformityTrial(1);
+    setConformityScore(0);
+    
     setBiasStep('story');
     setCurrentPhase('cover-image');
   };
@@ -468,11 +617,14 @@ export default function App() {
       {currentPhase !== 'select-pc' && currentPhase !== 'cover-image' && (
         <header className="p-4 bg-white shadow-md flex justify-between items-center border-b-4 border-slate-200">
           <h1 className="text-xl font-bold text-slate-700">Science 4 All - OSCAR Lab</h1>
-          {team && (
-            <div className={`px-4 py-2 rounded-full font-bold text-white shadow-sm ${team === 'arancioni' ? 'bg-orange-500' : 'bg-teal-600'}`}>
-              PC {pcNumber} di {totalPcs} - Clan {team === 'arancioni' ? 'Arancione' : 'Ottanio'}
+          
+          {/* Il badge appare SOLO se non siamo nell'intro e se (nella fase 1) siamo arrivati al 'result', oppure nelle fasi successive */}
+          {team && (currentPhase !== 'intro' && (currentPhase !== 'phase-1' || sortingStep === 'result')) && (
+            <div className={`px-4 py-2 rounded-full font-bold text-white shadow-sm ${team === 'arancioni' ? 'bg-orange-500' : 'bg-blue-600'}`}>
+              PC {pcNumber} di {totalPcs} - Clan {team === 'arancioni' ? 'Arancione' : 'Blu'}
             </div>
           )}
+          
         </header>
       )}
 
@@ -489,7 +641,7 @@ export default function App() {
 
           <button 
             onClick={() => setCurrentPhase('intro')} 
-            className={`absolute bottom-12 px-16 py-6 text-white font-black rounded-full text-3xl uppercase tracking-widest shadow-2xl transition-transform hover:scale-105 border-4 border-white/20 hover:border-white/50 ${team === 'arancioni' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-teal-500 hover:bg-teal-600'}`}
+            className={`absolute bottom-12 px-16 py-6 text-white font-black rounded-full text-3xl uppercase tracking-widest shadow-2xl transition-transform hover:scale-105 border-4 border-white/20 hover:border-white/50 ${team === 'arancioni' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-500 hover:bg-blue-600'}`}
           >
             Prosegui
           </button>
@@ -509,7 +661,7 @@ export default function App() {
                   onChange={(e) => setTotalPcs(Number(e.target.value))}
                   className="text-3xl font-black bg-cyan-50 border-4 border-cyan-200 rounded-2xl px-8 py-4 outline-none focus:border-cyan-500 text-cyan-700 cursor-pointer hover:bg-cyan-100 transition-colors"
                 >
-                  {Array.from({ length: 21 }, (_, i) => i + 10).map(n => (
+                  {Array.from({ length: 22 }, (_, i) => i + 10).map(n => (
                     <option key={n} value={n}>{n} Bambini (PC)</option>
                   ))}
                 </select>
@@ -525,8 +677,8 @@ export default function App() {
                 <button
                   key={num}
                   onClick={() => handleSelectPc(num)}
-                  className={`p-4 text-xl font-bold rounded-xl transition-transform hover:scale-105 shadow-sm text-white
-                    ${num % 2 !== 0 ? 'bg-orange-500 hover:bg-orange-600' : 'bg-teal-500 hover:bg-teal-600'}`}
+                  // Rimossi i colori arancione/blu, ora i bottoni sono grigio scuro neutro
+                  className="p-4 text-xl font-bold rounded-xl transition-transform hover:scale-105 shadow-sm text-white bg-slate-700 hover:bg-slate-800"
                 >
                   PC {num}
                 </button>
@@ -549,7 +701,7 @@ export default function App() {
                 <p className="text-2xl font-extrabold leading-snug">Il deserto è in pericolo. <br/>La sopravvivenza dei suricati dipende da voi!</p>
               </div>
             </div>
-            <button onClick={() => setCurrentPhase('phase-1')} className={`relative z-10 mt-8 px-14 py-6 text-white font-black rounded-full text-3xl uppercase tracking-widest transition-all hover:brightness-110 active:translate-y-2 active:border-b-0 ${team === 'arancioni' ? 'bg-orange-500 border-b-[8px] border-orange-700' : 'bg-teal-500 border-b-[8px] border-teal-700'}`}>
+            <button onClick={() => setCurrentPhase('phase-1')} className={`relative z-10 mt-8 px-14 py-6 text-white font-black rounded-full text-3xl uppercase tracking-widest transition-all hover:brightness-110 active:translate-y-2 active:border-b-0 ${team === 'arancioni' ? 'bg-orange-500 border-b-[8px] border-orange-700' : 'bg-blue-500 border-b-[8px] border-blue-700'}`}>
               INIZIA LA MISSIONE!
             </button>
           </div>
@@ -561,18 +713,19 @@ export default function App() {
               <div className="bg-white p-12 rounded-[2rem] shadow-xl text-center space-y-8 animate-in fade-in">
                 <div className="text-6xl mb-4">👀</div>
                 <h2 className="text-4xl font-black text-slate-700">Test della Vista del Suricato</h2>
-                <p className="text-2xl text-slate-600 leading-relaxed">I suricati hanno una vista eccezionale. <br/>Nella prossima schermata ti verrà mostrata un'immagine per <strong>10 secondi</strong>. Cerca di capire quanti insetti ci sono!</p>
-                <button onClick={() => setSortingStep('image')} className="mt-8 px-10 py-5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-full text-2xl shadow-lg">Sono pronto!</button>
+                <p className="text-2xl text-slate-600 leading-relaxed">I suricati hanno una vista eccezionale. <br/>Dovrai superare <strong>3 prove</strong> di osservazione. Per ogni prova avrai <strong>10 secondi</strong> per contare gli elementi a schermo.</p>
+                <button onClick={() => setSortingStep('image')} className="mt-8 px-10 py-5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-full text-2xl shadow-lg">Inizia la Prova 1!</button>
               </div>
             )}
-            {sortingStep === 'image' && (
+            
+            {sortingStep === 'image' && currentTrialData && (
               <div className="bg-white p-10 rounded-[2rem] shadow-xl text-center space-y-8 animate-in zoom-in duration-300">
-                <h2 className="text-3xl font-bold text-slate-700">Osserva attentamente...</h2>
-                <div className="w-80 h-80 mx-auto bg-amber-100 rounded-3xl border-8 border-amber-300 relative flex items-center justify-center overflow-hidden">
-                  {Array.from({ length: 40 }).map((_, i) => (
+                <h2 className="text-3xl font-bold text-slate-700">{currentTrialData.title} - Osserva attentamente...</h2>
+                <div className={`w-80 h-80 mx-auto ${currentTrialData.bg} rounded-3xl border-8 ${currentTrialData.borderColor} relative flex items-center justify-center overflow-hidden`}>
+                  {Array.from({ length: currentTrialData.dotCount }).map((_, i) => (
                     <div key={i} className="absolute w-2 h-2 bg-slate-800 rounded-full" style={{ top: `${Math.random() * 80 + 10}%`, left: `${Math.random() * 80 + 10}%` }}></div>
                   ))}
-                  <p className="text-amber-900/30 font-bold text-8xl rotate-12 z-0">🌿</p>
+                  <p className="text-black/10 font-bold text-8xl rotate-12 z-0">{currentTrialData.icon}</p>
                 </div>
                 <div className="flex items-center justify-center space-x-4">
                   <div className="text-xl font-bold text-slate-500">Tempo rimasto:</div>
@@ -580,31 +733,49 @@ export default function App() {
                 </div>
               </div>
             )}
-            {sortingStep === 'choice' && (
+            
+            {sortingStep === 'choice' && currentTrialData && (
               <div className="bg-white p-12 rounded-[2rem] shadow-xl text-center space-y-10 animate-in slide-in-from-bottom-8 duration-500">
                 <h2 className="text-4xl font-black text-slate-700">Tempo scaduto!</h2>
-                <p className="text-3xl text-slate-600 font-medium">Secondo te, c'erano...</p>
-                <div className="flex gap-6 justify-center">
-                  <button onClick={() => { setSortingStep('loading'); setTimeout(() => setSortingStep('result'), 2500); }} className="flex-1 px-8 py-10 bg-slate-100 hover:bg-amber-100 border-4 border-slate-200 text-slate-700 font-black rounded-3xl text-3xl">MENO di 17</button>
-                  <button onClick={() => { setSortingStep('loading'); setTimeout(() => setSortingStep('result'), 2500); }} className="flex-1 px-8 py-10 bg-slate-100 hover:bg-amber-100 border-4 border-slate-200 text-slate-700 font-black rounded-3xl text-3xl">PIÙ di 17</button>
+                <p className="text-3xl text-slate-600 font-medium">{currentTrialData.question}</p>
+                <div className="grid grid-cols-2 gap-6 max-w-xl mx-auto">
+                  {currentTrialData.options.map((num) => (
+                    <button 
+                      key={num}
+                      onClick={() => { 
+                        if (sortingTrial < 3) {
+                          setSortingTrial(prev => prev + 1);
+                          setSortingStep('image');
+                        } else {
+                          setSortingStep('loading'); 
+                          setTimeout(() => setSortingStep('result'), 3000); 
+                        }
+                      }} 
+                      className="px-8 py-8 bg-slate-50 hover:bg-amber-100 border-4 border-slate-200 text-slate-700 font-black rounded-3xl text-4xl shadow-sm transition-transform active:scale-95"
+                    >
+                      {num}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
+            
             {sortingStep === 'loading' && (
               <div className="text-center space-y-6 animate-pulse mt-20">
                 <div className="w-24 h-24 border-8 border-slate-300 border-t-amber-500 rounded-full animate-spin mx-auto"></div>
-                <h2 className="text-3xl font-bold text-slate-700">I saggi stanno analizzando...</h2>
+                <h2 className="text-3xl font-bold text-slate-700">I saggi stanno analizzando le tue 3 risposte...</h2>
               </div>
             )}
+            
             {sortingStep === 'result' && (
               <div className="bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-8 border-t-[12px] animate-in zoom-in duration-500" style={{ borderColor: team === 'arancioni' ? '#f97316' : '#0d9488' }}>
                 <h2 className="text-3xl font-bold text-slate-500 uppercase">Sei stato assegnato ai</h2>
-                <h1 className={`text-6xl font-black uppercase ${team === 'arancioni' ? 'text-orange-500' : 'text-teal-600'}`}>Suricati {team === 'arancioni' ? 'Arancioni' : 'Ottanio'}</h1>
+                <h1 className={`text-6xl font-black uppercase ${team === 'arancioni' ? 'text-orange-500' : 'text-blue-600'}`}>Suricati {team === 'arancioni' ? 'Arancioni' : 'Blu'}</h1>
                 <div className="bg-slate-100 p-8 rounded-3xl mt-8 border-2 border-slate-200">
                   <p className="text-3xl mb-4">✋</p>
                   <p className="text-2xl font-bold text-slate-700">Alza la mano per il distintivo!</p>
                 </div>
-                <button onClick={() => setCurrentPhase('phase-2')} className={`mt-8 px-10 py-5 text-white font-bold rounded-full text-2xl shadow-lg ${team === 'arancioni' ? 'bg-orange-500' : 'bg-teal-500'}`}>Andiamo avanti!</button>
+                <button onClick={() => setCurrentPhase('phase-2')} className={`mt-8 px-10 py-5 text-white font-bold rounded-full text-2xl shadow-lg ${team === 'arancioni' ? 'bg-orange-500' : 'bg-blue-500'}`}>Andiamo avanti!</button>
               </div>
             )}
           </div>
@@ -612,39 +783,65 @@ export default function App() {
 
         {currentPhase === 'phase-2' && (
           <div className="w-full max-w-4xl mx-auto">
-            {conformityStep === 'question' && (
-              <div className="bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-10 border-4 animate-in slide-in-from-right-8 duration-500" style={{ borderColor: team === 'arancioni' ? '#fdba74' : '#5eead4' }}>
+            
+            {conformityStep === 'intro' && (
+              <div className="bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-8 border-4 animate-in fade-in" style={{ borderColor: team === 'arancioni' ? '#fdba74' : '#5eead4' }}>
+                <div className="text-7xl mb-4">🤝</div>
                 <h2 className="text-4xl font-black text-slate-700">Le tradizioni del tuo Clan</h2>
+                <p className="text-3xl text-slate-600 leading-relaxed font-medium">
+                  Ora ti aiutiamo a conoscere i membri del tuo clan! <br/>
+                  Scopriamo insieme cosa piace fare ai <strong className={team === 'arancioni' ? 'text-orange-500' : 'text-blue-600'}>Suricati {team === 'arancioni' ? 'Arancioni' : 'Blu'}</strong>.
+                </p>
+                <button onClick={() => setConformityStep('question')} className={`mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg ${team === 'arancioni' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-500 hover:bg-blue-600'}`}>
+                  Scopri di più!
+                </button>
+              </div>
+            )}
+
+            {conformityStep === 'question' && currentConformity && (
+              <div className="bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-10 border-4 animate-in slide-in-from-right-8 duration-500" style={{ borderColor: team === 'arancioni' ? '#fdba74' : '#5eead4' }}>
+                <h2 className="text-4xl font-black text-slate-700">{currentConformity.topic}</h2>
                 <div className="bg-slate-50 p-8 rounded-3xl border border-slate-200">
-                  <p className="text-2xl text-slate-700">
-                    {team === 'arancioni' 
-                      ? "Ben 9 suricati su 10 nel tuo clan preferiscono il Fico d'India 🍅​ al posto della Bacca Dolce 🫐." 
-                      : "Ben 9 suricati su 10 nel tuo clan preferiscono la Bacca Dolce 🫐 al posto del Fico d'India 🍅​."}
+                  <p className="text-2xl text-slate-700 leading-relaxed">
+                    La maggior parte dei Suricati <strong className={team === 'arancioni' ? 'text-orange-500' : 'text-blue-600'}>{team === 'arancioni' ? 'Arancioni' : 'Blu'}</strong>, il clan di cui fai parte, preferisce <strong>{ingroupPreference}</strong>!
                   </p>
                 </div>
                 <h3 className="text-3xl font-bold text-slate-600 mb-8">E tu, quale preferisci?</h3>
                 <div className="flex gap-6 justify-center">
-                  <button onClick={() => { setConformed(team === 'ottanio'); setConformityStep('feedback'); }} className="flex-1 flex flex-col items-center p-8 bg-white border-4 hover:border-amber-400 rounded-3xl group">
-                    <span className="text-7xl mb-4 group-hover:scale-110">🫐</span>
-                    <span className="text-2xl font-bold">Bacca Dolce</span>
-                  </button>
-                  <button onClick={() => { setConformed(team === 'arancioni'); setConformityStep('feedback'); }} className="flex-1 flex flex-col items-center p-8 bg-white border-4 hover:border-amber-400 rounded-3xl group">
-                    <span className="text-7xl mb-4 group-hover:scale-110">🍅​</span>
-                    <span className="text-2xl font-bold">Fico d'India</span>
-                  </button>
+                  {currentConformity.options.map((opt) => (
+                    <button 
+                      key={opt.id}
+                      onClick={() => {
+                        if (opt.id === ingroupPreference) setConformityScore(prev => prev + 1);
+                        if (conformityTrial < 3) {
+                          setConformityTrial(prev => prev + 1);
+                        } else {
+                          setConformityStep('feedback');
+                        }
+                      }} 
+                      className="flex-1 flex flex-col items-center p-8 bg-white border-4 hover:border-amber-400 rounded-3xl group shadow-sm transition-transform active:scale-95"
+                    >
+                      <span className="text-7xl mb-4 group-hover:scale-110 transition-transform">{opt.icon}</span>
+                      <span className="text-2xl font-bold text-slate-700">{opt.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
+
             {conformityStep === 'feedback' && (
               <div className="bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-8 animate-in zoom-in duration-300">
-                <div className="text-7xl mb-6">{conformed ? '🎉' : '⭐'}</div>
-                <h2 className="text-4xl font-black text-slate-700">Scelta registrata!</h2>
+                <div className="text-7xl mb-6">🎉</div>
+                <h2 className="text-4xl font-black text-slate-700">Scelte registrate!</h2>
                 <p className="text-2xl text-slate-600">
-                  {conformed ? "Ottima scelta! Sei in perfetta sintonia con il gruppo." : "Scelta originale! A volte i suricati hanno gusti diversi."}
+                  Ottimo lavoro! Ora conosci molto meglio le tradizioni e i gusti del tuo nuovo clan.
                 </p>
-                <button onClick={() => setCurrentPhase('phase-3')} className={`mt-10 px-10 py-5 text-white font-bold rounded-full text-2xl ${team === 'arancioni' ? 'bg-orange-500' : 'bg-teal-500'}`}>Continua l'esplorazione</button>
+                <button onClick={() => setCurrentPhase('phase-3')} className={`mt-10 px-10 py-5 text-white font-bold rounded-full text-2xl shadow-lg ${team === 'arancioni' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-500 hover:bg-blue-600'}`}>
+                  Continua l'esplorazione
+                </button>
               </div>
             )}
+            
           </div>
         )}
 
@@ -657,7 +854,7 @@ export default function App() {
                 <div className="bg-amber-50 p-8 rounded-3xl border-2 border-amber-200">
                   <p className="text-2xl text-slate-700 leading-relaxed font-medium">Oscar avvisa: <strong className="text-red-500">è iniziata la stagione secca</strong>. <br/>Nel deserto è rimasta una sola oasi sicura. Entrambi i clan l'hanno scoperta, ma le risorse non basteranno per tutti.</p>
                 </div>
-                <button onClick={() => setBiasStep('preference')} className={`mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg ${team === 'arancioni' ? 'bg-orange-500' : 'bg-teal-500'}`}>Continua</button>
+                <button onClick={() => setBiasStep('preference')} className={`mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg ${team === 'arancioni' ? 'bg-orange-500' : 'bg-blue-500'}`}>Continua</button>
               </div>
             )}
             {biasStep === 'preference' && (
@@ -666,7 +863,7 @@ export default function App() {
                 <p className="text-3xl text-slate-600 font-medium">Chi <strong>preferiresti</strong> vincesse la sfida?</p>
                 <div className="flex gap-6 justify-center mt-8">
                   <button onClick={() => { setPreferredWinner('arancioni'); setBiasStep('prediction'); }} className="flex-1 px-8 py-12 bg-orange-50 border-4 border-orange-200 hover:border-orange-500 text-orange-600 font-black rounded-3xl text-3xl">Gli Arancioni</button>
-                  <button onClick={() => { setPreferredWinner('ottanio'); setBiasStep('prediction'); }} className="flex-1 px-8 py-12 bg-teal-50 border-4 border-teal-200 hover:border-teal-500 text-teal-700 font-black rounded-3xl text-3xl">Gli Ottanio</button>
+                  <button onClick={() => { setPreferredWinner('blu'); setBiasStep('prediction'); }} className="flex-1 px-8 py-12 bg-blue-50 border-4 border-blue-200 hover:border-blue-500 text-blue-700 font-black rounded-3xl text-3xl">Il clan Blu</button>
                 </div>
               </div>
             )}
@@ -676,7 +873,7 @@ export default function App() {
                 <p className="text-3xl text-slate-600 font-medium">E secondo te, chi <strong>vincerà davvero</strong>?</p>
                 <div className="flex gap-6 justify-center mt-8">
                   <button onClick={() => { setPredictedWinner('arancioni'); setBiasStep('iat-intro'); }} className="flex-1 px-8 py-12 bg-orange-50 border-4 border-orange-200 hover:border-orange-500 text-orange-600 font-black rounded-3xl text-3xl">Vinceranno gli Arancioni</button>
-                  <button onClick={() => { setPredictedWinner('ottanio'); setBiasStep('iat-intro'); }} className="flex-1 px-8 py-12 bg-teal-50 border-4 border-teal-200 hover:border-teal-500 text-teal-700 font-black rounded-3xl text-3xl">Vinceranno gli Ottanio</button>
+                  <button onClick={() => { setPredictedWinner('blu'); setBiasStep('iat-intro'); }} className="flex-1 px-8 py-12 bg-blue-50 border-4 border-blue-200 hover:border-blue-500 text-blue-700 font-black rounded-3xl text-3xl">Vincerà il clan Blu</button>
                 </div>
               </div>
             )}
@@ -685,61 +882,102 @@ export default function App() {
               <div className="bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-8 animate-in fade-in">
                 <div className="text-6xl mb-4 animate-bounce">⚡</div>
                 <h2 className="text-4xl font-black text-slate-700">Allenamento di Velocità</h2>
-                <p className="text-2xl text-slate-600">Per vincere l'oasi servono riflessi pronti! Ti mostreremo delle immagini al centro dello schermo. <br/><br/>Il tuo compito è <strong>cliccare il più velocemente possibile</strong> sul lato corretto a cui appartengono usando il mouse oppure i tasti <strong>Q</strong> e <strong>P</strong> della tastiera.</p>
-                <button onClick={() => setBiasStep('iat-block1')} className="mt-8 px-10 py-5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-full text-2xl shadow-lg">Inizia Blocco 1</button>
+                <p className="text-2xl text-slate-600">Per vincere l'oasi servono riflessi pronti! Ecco come funziona:</p>
+                <ol className="text-2xl text-slate-700 text-left space-y-4 bg-amber-50 border-2 border-amber-200 rounded-3xl p-8 list-decimal list-inside font-medium">
+                  <li>Al centro dello schermo compariranno, una alla volta, <strong>foto di suricati</strong> e <strong>parole con le faccine</strong>.</li>
+                  <li>In alto vedrai due etichette: una a <strong>sinistra</strong> e una a <strong>destra</strong>. Ogni foto o parola appartiene a una sola etichetta.</li>
+                  <li>Premi <strong>Q</strong> (o il pulsante a sinistra) se appartiene all'etichetta di <strong>sinistra</strong>, premi <strong>P</strong> (o il pulsante a destra) se appartiene a quella di <strong>destra</strong>.</li>
+                  <li>Sii <strong>più veloce che puoi</strong>, ma cerca di non sbagliare: se sbagli compare una <strong className="text-red-500">X rossa</strong> e devi riprovare.</li>
+                  <li>Ci sono due blocchi, e nel secondo le etichette cambiano: leggile con attenzione!</li>
+                </ol>
+                <p className="text-xl text-slate-500 font-medium">Prima di ogni blocco ci sarà un conto alla rovescia di 5 secondi: metti le dita su <strong>Q</strong> e <strong>P</strong>!</p>
+                <button onClick={() => startIatBlock('iat-block1')} className="mt-8 px-10 py-5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-full text-2xl shadow-lg">Inizia Blocco 1</button>
               </div>
             )}
 
             {(biasStep === 'iat-block1' || biasStep === 'iat-block2') && (
-              <div className={`fixed inset-0 z-50 flex flex-col justify-between p-8 sm:p-12 ${iatError ? 'bg-red-950' : 'bg-black'} transition-colors duration-150`}>
-                <div className="flex justify-between items-start w-full max-w-6xl mx-auto text-white">
-                  <div className="text-left w-1/3">
-                    <p className="text-2xl font-black uppercase tracking-widest text-slate-400 mb-2">Sinistra (Premi Q)</p>
-                    <p className="text-4xl font-bold leading-tight text-white">Suricati {ingroupName} <br/> <span className={biasStep === 'iat-block1' ? 'text-green-400' : 'text-blue-400'}>{biasStep === 'iat-block1' ? 'OPPURE Felice 😊' : 'OPPURE Triste ☹️'}</span></p>
-                  </div>
-                  <div className="text-center opacity-50 mt-4"><span className="px-4 py-2 border-2 border-white rounded-full font-bold uppercase tracking-widest text-sm">Sii Veloce!</span></div>
-                  <div className="text-right w-1/3">
-                    <p className="text-2xl font-black uppercase tracking-widest text-slate-400 mb-2">Destra (Premi P)</p>
-                    <p className="text-4xl font-bold leading-tight text-white">Suricati {outgroupName} <br/> <span className={biasStep === 'iat-block1' ? 'text-blue-400' : 'text-green-400'}>{biasStep === 'iat-block1' ? 'OPPURE Triste ☹️' : 'OPPURE Felice 😊'}</span></p>
-                  </div>
-                </div>
-                <div className="flex-1 flex flex-col items-center justify-center relative">
-                  {(biasStep === 'iat-block1' ? block1Sequence[iatTrialIndex].type : block2Sequence[iatTrialIndex].type) === 'text' ? (
-                    <div className="text-7xl font-black text-white px-16 py-10 bg-slate-800 rounded-[3rem] shadow-2xl border-4 border-slate-700">{biasStep === 'iat-block1' ? block1Sequence[iatTrialIndex].content : block2Sequence[iatTrialIndex].content}</div>
-                  ) : (
-                    <div className="flex flex-col items-center">
-                      <img src={(biasStep === 'iat-block1' ? block1Sequence[iatTrialIndex].content : block2Sequence[iatTrialIndex].content) === 'Arancioni' ? IMG_ARANCIONE : IMG_OTTANIO} alt="Suricato" className="w-80 h-80 object-cover bg-slate-800 rounded-[3rem] shadow-2xl border-8 border-slate-600" />
-                      <p className="text-white text-3xl font-bold mt-6 opacity-50 uppercase tracking-widest">Suricati {(biasStep === 'iat-block1' ? block1Sequence[iatTrialIndex].content : block2Sequence[iatTrialIndex].content)}</p>
-                    </div>
-                  )}
-                  {iatError && <div className="absolute top-[80%] text-red-500 text-9xl font-black animate-ping drop-shadow-2xl">X</div>}
-                </div>
-                <div className="flex justify-between gap-8 w-full max-w-5xl mx-auto">
-                  <button onClick={() => handleIatClick('left', biasStep === 'iat-block1' ? block1Sequence : block2Sequence)} className="flex-1 py-10 bg-slate-800 hover:bg-slate-700 text-white border-4 border-slate-600 rounded-[2rem] text-4xl font-black shadow-lg transition-transform active:scale-95">[Q] 👈 SINISTRA</button>
-                  <button onClick={() => handleIatClick('right', biasStep === 'iat-block1' ? block1Sequence : block2Sequence)} className="flex-1 py-10 bg-slate-800 hover:bg-slate-700 text-white border-4 border-slate-600 rounded-[2rem] text-4xl font-black shadow-lg transition-transform active:scale-95">DESTRA 👉 [P]</button>
-                </div>
-              </div>
-            )}
+  <div className={`fixed inset-0 z-50 flex flex-col justify-between p-8 sm:p-12 ${iatError ? 'bg-red-950' : 'bg-black'} transition-colors duration-150`}>
+    <div className="flex justify-between items-start w-full max-w-6xl mx-auto text-white">
+      <div className="text-left w-1/3">
+        <p className="text-2xl font-black uppercase tracking-widest text-slate-400 mb-2">Sinistra (Premi Q)</p>
+        <p className="text-4xl font-bold leading-tight text-white">
+          Suricati {team === 'arancioni' ? 'Arancioni' : 'Blu'} <br/> 
+          <span className={biasStep === 'iat-block1' ? 'text-green-400' : 'text-red-400'}>
+            {biasStep === 'iat-block1' ? 'OPPURE Felice 😊' : 'OPPURE Triste ☹️'}
+          </span>
+        </p>
+      </div>
+      <div className="text-center opacity-50 mt-4">
+        <span className="px-4 py-2 border-2 border-white rounded-full font-bold uppercase tracking-widest text-sm">Sii Veloce!</span>
+      </div>
+      <div className="text-right w-1/3">
+        <p className="text-2xl font-black uppercase tracking-widest text-slate-400 mb-2">Destra (Premi P)</p>
+        <p className="text-4xl font-bold leading-tight text-white">
+          Suricati {team === 'arancioni' ? 'Blu' : 'Arancioni'} <br/> 
+          <span className={biasStep === 'iat-block1' ? 'text-red-400' : 'text-green-400'}>
+            {biasStep === 'iat-block1' ? 'OPPURE Triste ☹️' : 'OPPURE Felice 😊'}
+          </span>
+        </p>
+      </div>
+    </div>
 
-            {biasStep === 'iat-interlude' && (
-              <div className="bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-8 animate-in zoom-in">
-                <h2 className="text-4xl font-black text-slate-700">Ottimo lavoro!</h2>
-                <p className="text-2xl text-slate-600">Ora le regole si invertono. Fai molta attenzione!</p>
-                <button onClick={() => setBiasStep('iat-block2')} className="mt-8 px-10 py-5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-full text-2xl shadow-lg">Inizia Blocco 2</button>
-              </div>
-            )}
+    <div className="flex-1 flex flex-col items-center justify-center relative">
+      {iatCountdown > 0 ? (
+        <div className="flex flex-col items-center text-white">
+          <p className="text-3xl font-bold uppercase tracking-widest text-slate-400 mb-6">Preparati... si parte tra</p>
+          <div key={iatCountdown} className="text-[12rem] leading-none font-black text-amber-400 animate-in zoom-in duration-300">{iatCountdown}</div>
+        </div>
+      ) : (biasStep === 'iat-block1' ? block1Sequence[iatTrialIndex].type : block2Sequence[iatTrialIndex].type) === 'text' ? (
+        <div className="text-7xl font-black text-white px-16 py-10 bg-slate-800 rounded-[3rem] shadow-2xl border-4 border-slate-700">
+          {(biasStep === 'iat-block1' ? block1Sequence[iatTrialIndex].content : block2Sequence[iatTrialIndex].content)}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center">
+          <img 
+            src={(biasStep === 'iat-block1' ? block1Sequence[iatTrialIndex].content : block2Sequence[iatTrialIndex].content)} 
+            alt="Suricato" 
+            className="w-80 h-80 object-cover bg-slate-800 rounded-[3rem] shadow-2xl border-8 border-slate-600" 
+          />
+          <p className="text-white text-3xl font-bold mt-6 opacity-50 uppercase tracking-widest">
+            Suricati {(biasStep === 'iat-block1' ? block1Sequence[iatTrialIndex].content : block2Sequence[iatTrialIndex].content).toLowerCase().includes('arancione') ? 'Arancioni' : 'Blu'}
+          </p>
+        </div>
+      )}
+      {iatError && <div className="absolute top-[80%] text-red-500 text-9xl font-black animate-ping drop-shadow-2xl">X</div>}
+    </div>
 
-            {biasStep === 'iat-feedback' && (
-              <div className="bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-10 animate-in slide-in-from-bottom">
-                <h2 className="text-4xl font-black text-slate-700">Fine dell'Allenamento!</h2>
-                <p className="text-2xl text-slate-600 font-medium">Una curiosità: quale dei due blocchi ti è sembrato più <strong>facile e veloce</strong> da completare?</p>
-                <div className="flex flex-col gap-4 mt-8 max-w-2xl mx-auto">
-                  <button onClick={() => { setIatDifficultyChoice('ingroup-happy'); setBiasStep('memory-intro'); }} className="p-6 bg-slate-50 border-4 border-slate-200 hover:border-amber-400 text-slate-700 font-bold rounded-2xl text-xl text-left transition-transform hover:-translate-y-1 shadow-sm">Quando dovevo associare i Suricati {ingroupName} alle faccine FELICI 😊</button>
-                  <button onClick={() => { setIatDifficultyChoice('ingroup-sad'); setBiasStep('memory-intro'); }} className="p-6 bg-slate-50 border-4 border-slate-200 hover:border-amber-400 text-slate-700 font-bold rounded-2xl text-xl text-left transition-transform hover:-translate-y-1 shadow-sm">Quando dovevo associare i Suricati {ingroupName} alle faccine TRISTI ☹️</button>
-                  <button onClick={() => { setIatDifficultyChoice('uguale'); setBiasStep('memory-intro'); }} className="p-6 bg-slate-50 border-4 border-slate-200 hover:border-amber-400 text-slate-700 font-bold rounded-2xl text-xl text-center transition-transform hover:-translate-y-1 shadow-sm">Erano facili uguali</button>
-                </div>
-              </div>
-            )}
+    <div className="flex justify-between gap-8 w-full max-w-5xl mx-auto">
+      <button onClick={() => handleIatClick('left', biasStep === 'iat-block1' ? block1Sequence : block2Sequence)} className="flex-1 py-10 bg-slate-800 hover:bg-slate-700 text-white border-4 border-slate-600 rounded-[2rem] text-4xl font-black shadow-lg transition-transform active:scale-95">[Q] 👈 SINISTRA</button>
+      <button onClick={() => handleIatClick('right', biasStep === 'iat-block1' ? block1Sequence : block2Sequence)} className="flex-1 py-10 bg-slate-800 hover:bg-slate-700 text-white border-4 border-slate-600 rounded-[2rem] text-4xl font-black shadow-lg transition-transform active:scale-95">DESTRA 👉 [P]</button>
+    </div>
+  </div>
+)}
+
+{biasStep === 'iat-interlude' && (
+  <div className="bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-8 animate-in zoom-in">
+    <h2 className="text-4xl font-black text-slate-700">Ottimo lavoro!</h2>
+    <p className="text-2xl text-slate-600">Ora le regole si invertono. Fai molta attenzione!</p>
+    <button onClick={() => startIatBlock('iat-block2')} className="mt-8 px-10 py-5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-full text-2xl shadow-lg">Inizia Blocco 2</button>
+  </div>
+)}
+
+{biasStep === 'iat-feedback' && (
+  <div className="bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-10 animate-in slide-in-from-bottom">
+    <h2 className="text-4xl font-black text-slate-700">Fine dell'Allenamento!</h2>
+    <p className="text-2xl text-slate-600 font-medium">Una curiosità: quale dei due blocchi ti è sembrato più <strong>facile e veloce</strong> da completare?</p>
+    <div className="flex flex-col gap-4 mt-8 max-w-2xl mx-auto">
+      <button onClick={() => { setIatDifficultyChoice('ingroup-happy'); setBiasStep('memory-intro'); }} className="p-6 bg-slate-50 border-4 border-slate-200 hover:border-amber-400 text-slate-700 font-bold rounded-2xl text-xl text-left transition-transform hover:-translate-y-1 shadow-sm">
+        Quando dovevo associare i Suricati {team === 'arancioni' ? 'Arancioni' : 'Blu'} alle faccine FELICI 😊
+      </button>
+      <button onClick={() => { setIatDifficultyChoice('ingroup-sad'); setBiasStep('memory-intro'); }} className="p-6 bg-slate-50 border-4 border-slate-200 hover:border-amber-400 text-slate-700 font-bold rounded-2xl text-xl text-left transition-transform hover:-translate-y-1 shadow-sm">
+        Quando dovevo associare i Suricati {team === 'arancioni' ? 'Arancioni' : 'Blu'} alle faccine TRISTI ☹️
+      </button>
+      <button onClick={() => { setIatDifficultyChoice('uguale'); setBiasStep('memory-intro'); }} className="p-6 bg-slate-50 border-4 border-slate-200 hover:border-amber-400 text-slate-700 font-bold rounded-2xl text-xl text-center transition-transform hover:-translate-y-1 shadow-sm">
+        Erano facili uguali
+      </button>
+    </div>
+  </div>
+)}
 
             {biasStep === 'memory-intro' && (
               <div className="bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-8 animate-in fade-in duration-500">
@@ -749,29 +987,41 @@ export default function App() {
                   Trova le 10 coppie! Le carte nascondono membri di entrambi i clan, ognuno con il suo mestiere. <br/>
                   Vediamo in quanto tempo riesci a scoprire tutti i suricati.
                 </p>
-                <button onClick={() => setBiasStep('memory-game')} className={`mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg ${team === 'arancioni' ? 'bg-orange-500' : 'bg-teal-500'}`}>Inizia il Memory</button>
+                <button onClick={() => setBiasStep('memory-game')} className={`mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg ${team === 'arancioni' ? 'bg-orange-500' : 'bg-blue-500'}`}>Inizia il Memory</button>
               </div>
             )}
 
             {biasStep === 'memory-game' && (
-              <div className="bg-white p-8 sm:p-12 rounded-[3rem] shadow-2xl text-center animate-in zoom-in w-full">
-                <h2 className="text-3xl font-bold text-slate-700 mb-8">Trova le 10 coppie</h2>
-                <div className="grid grid-cols-4 sm:grid-cols-5 gap-3 sm:gap-4">
+              <div className="bg-slate-100 p-6 sm:p-12 rounded-[3rem] shadow-2xl animate-in zoom-in w-full max-w-4xl mx-auto flex flex-col items-center">
+                <h2 className="text-3xl font-black text-slate-700 mb-8 uppercase tracking-widest">Trova i gemelli!</h2>
+
+                {/* Griglia 5 colonne x 4 righe per 20 carte */}
+                <div className="grid grid-cols-5 gap-3 w-full">
                   {cards.map((card, index) => {
                     const isFlipped = flippedIndices.includes(index) || matchedPairs.includes(card.pairId);
                     return (
-                      <button 
-                        key={card.uniqueId} 
+                      <button
+                        key={card.id}
                         onClick={() => handleCardClick(index)}
-                        className={`h-28 sm:h-32 rounded-2xl transition-all duration-300 transform perspective-1000 ${isFlipped ? 'rotate-y-180' : 'hover:-translate-y-1 hover:shadow-lg'}`}
+                        className="relative w-full aspect-square transition-transform hover:scale-105 active:scale-95 focus:outline-none"
                         style={{ perspective: '1000px' }}
                       >
-                        <div className={`relative w-full h-full transition-transform duration-500 ${isFlipped ? 'rotate-y-180' : ''}`} style={{ transformStyle: 'preserve-3d' }}>
-                          <div className={`absolute inset-0 bg-slate-200 border-4 border-slate-300 rounded-2xl flex items-center justify-center shadow-inner ${isFlipped ? 'opacity-0' : 'opacity-100'}`} style={{ backfaceVisibility: 'hidden' }}><span className="text-4xl opacity-30">❓</span></div>
-                          <div className={`absolute inset-0 rounded-2xl border-4 flex flex-col items-center justify-center p-1 sm:p-2 bg-white ${card.team === 'arancioni' ? 'border-orange-300' : 'border-teal-300'} ${isFlipped ? 'opacity-100' : 'opacity-0'}`} style={{ transform: 'rotateY(180deg)', backfaceVisibility: 'hidden' }}>
-                            <img src={card.img} alt="Suricato" className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded-full mb-1" />
-                            <span className="text-2xl absolute top-1 right-1 sm:top-2 sm:right-2">{card.icon}</span>
-                            <span className="text-[10px] sm:text-xs font-bold text-slate-700 mt-1 uppercase tracking-wider">{card.job}</span>
+                        <div
+                          className="w-full h-full duration-500 relative"
+                          style={{ transformStyle: 'preserve-3d', transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)', transition: 'transform 0.5s' }}
+                        >
+                          <div
+                            className="absolute w-full h-full bg-slate-700 rounded-2xl border-4 border-slate-600 flex items-center justify-center shadow-md"
+                            style={{ backfaceVisibility: 'hidden' }}
+                          >
+                            <span className="text-4xl text-slate-500 font-black opacity-50">?</span>
+                          </div>
+
+                          <div
+                            className={`absolute w-full h-full bg-white rounded-2xl border-4 flex items-center justify-center overflow-hidden shadow-lg ${card.team === 'arancioni' ? 'border-orange-500' : 'border-blue-500'}`}
+                            style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                          >
+                            <img src={card.image} alt="Suricato" className="w-full h-full object-cover" />
                           </div>
                         </div>
                       </button>
@@ -787,25 +1037,25 @@ export default function App() {
                 <h2 className="text-4xl font-black text-slate-700">Tutte le coppie trovate!</h2>
                 <div className="grid grid-cols-2 gap-8 mt-8">
                   <div className="bg-slate-50 p-6 rounded-3xl border-2 border-slate-200">
-                    <p className="text-lg text-slate-500 font-bold uppercase mb-2">Errori con il tuo clan</p>
-                    <p className="text-5xl font-black text-slate-700">{ingroupErrors}</p>
+                    <p className="text-lg text-slate-500 font-bold uppercase mb-2">Errori "Entro" il Clan<br/><span className="text-sm">(Carte dello stesso colore)</span></p>
+                    <p className="text-5xl font-black text-slate-700">{withinCategoryErrors}</p>
                   </div>
                   <div className="bg-slate-50 p-6 rounded-3xl border-2 border-slate-200">
-                    <p className="text-lg text-slate-500 font-bold uppercase mb-2">Errori con l'altro clan</p>
-                    <p className="text-5xl font-black text-slate-700">{outgroupErrors}</p>
+                    <p className="text-lg text-slate-500 font-bold uppercase mb-2">Errori "Tra" i Clan<br/><span className="text-sm">(Carte di colori diversi)</span></p>
+                    <p className="text-5xl font-black text-slate-700">{betweenCategoryErrors}</p>
                   </div>
                 </div>
                 <div className="bg-amber-50 p-8 rounded-3xl border-2 border-amber-200 mt-8">
                   <p className="text-2xl text-slate-700 leading-relaxed font-medium">
-                    Lo sapevi? Spesso notiamo in maniera diversa il <strong>nostro gruppo e gli altri gruppi</strong> e troviamo le loro coppie con molti meno o molti più errori.
+                    Lo sapevi? Il nostro cervello divide il mondo in categorie! È per questo che tendiamo a confondere molto di più tra loro i membri dello <strong>stesso gruppo</strong> (facendo più errori <em>entro</em> il clan), mentre distinguiamo meglio chi appartiene a <strong>gruppi diversi</strong> (meno errori <em>tra</em> clan).
                   </p>
                 </div>
-                <button onClick={() => setBiasStep('gonogo-intro')} className={`mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg ${team === 'arancioni' ? 'bg-orange-500' : 'bg-teal-500'}`}>
+                <button onClick={() => setBiasStep('gonogo-intro')} className={`mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg ${team === 'arancioni' ? 'bg-orange-500' : 'bg-blue-500'}`}>
                   E adesso... alla Caccia!
                 </button>
               </div>
             )}
-
+            
             {biasStep === 'gonogo-intro' && (
               <div className="bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-8 animate-in fade-in duration-500">
                 <div className="text-7xl mb-4 animate-bounce">🌪️</div>
@@ -818,19 +1068,19 @@ export default function App() {
                     <div className="bg-white p-6 rounded-2xl border-2 border-red-300 text-center shadow-sm">
                       <p className="text-4xl mb-2">🪨</p>
                       <p className="text-lg font-bold text-slate-700">Premi il tasto</p>
-                      <span className="text-3xl font-black text-red-600">P</span>
+                      <span className="text-3xl font-black text-red-600">Q</span>
                     </div>
                     <div className="bg-white p-6 rounded-2xl border-2 border-amber-300 text-center shadow-sm">
                       <p className="text-4xl mb-2">🍂</p>
                       <p className="text-lg font-bold text-slate-700">Premi il tasto</p>
-                      <span className="text-3xl font-black text-amber-600">Q</span>
+                      <span className="text-3xl font-black text-amber-600">P</span>
                     </div>
                   </div>
                   <p className="text-xl text-slate-700 text-center mt-2">
                     ❌ <strong>NON PREMERE NULLA</strong> per le provviste buone (<span className="text-green-600 font-bold">🍓 🦗</span>) che devono atterrare in salvo!
                   </p>
                 </div>
-                <button onClick={() => setBiasStep('gonogo-game')} className={`mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg ${team === 'arancioni' ? 'bg-orange-500' : 'bg-teal-500'}`}>
+                <button onClick={() => setBiasStep('gonogo-game')} className={`mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg ${team === 'arancioni' ? 'bg-orange-500' : 'bg-blue-500'}`}>
                   Sono Pronto!
                 </button>
               </div>
@@ -880,10 +1130,10 @@ export default function App() {
 
                 <div className="flex gap-8 mt-6 relative z-10">
                   <div className="bg-red-50 px-6 py-2 rounded-xl border-2 border-red-200 font-bold text-red-700">
-                    🪨 Premi <span className="text-2xl font-black underline ml-1">P</span>
+                    🪨 Premi <span className="text-2xl font-black underline ml-1">Q</span>
                   </div>
                   <div className="bg-amber-50 px-6 py-2 rounded-xl border-2 border-amber-200 font-bold text-amber-700">
-                    🍂 Premi <span className="text-2xl font-black underline ml-1">Q</span>
+                    🍂 Premi <span className="text-2xl font-black underline ml-1">P</span>
                   </div>
                 </div>
               </div>
@@ -902,7 +1152,7 @@ export default function App() {
                     <div className="text-7xl mb-4 animate-bounce">✅</div>
                     <h2 className="text-4xl font-black text-slate-700">Tutti hanno finito!</h2>
                     <p className="text-2xl text-slate-500 font-medium">I risultati sono pronti.</p>
-                    <button onClick={() => setBiasStep('gonogo-result')} className={`mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg animate-in zoom-in ${team === 'arancioni' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-teal-500 hover:bg-teal-600'}`}>Scopri il Vincitore</button>
+                    <button onClick={() => setBiasStep('gonogo-result')} className={`mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg animate-in zoom-in ${team === 'arancioni' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-500 hover:bg-blue-600'}`}>Scopri il Vincitore</button>
                   </>
                 )}
               </div>
@@ -914,12 +1164,52 @@ export default function App() {
                 <h2 className="text-5xl font-black text-slate-700 uppercase text-red-500">Tempo Scaduto!</h2>
                 <div className="bg-slate-100 p-8 rounded-3xl border-4 border-slate-200 mt-8">
                   <p className="text-3xl text-slate-700 leading-relaxed font-bold">Incredibile... è un <span className="text-amber-500 font-black text-4xl">PAREGGIO ASSOLUTO!</span></p>
-                  <p className="text-xl text-slate-600 mt-4">Sia gli Arancioni che gli Ottanio hanno raccolto esattamente lo stesso numero di provviste. La tensione è alle stelle!</p>
+                  <p className="text-xl text-slate-600 mt-4">Sia il clan Arancione che il clan Blu hanno raccolto esattamente lo stesso numero di provviste. La tensione è alle stelle!</p>
                 </div>
-                <button onClick={() => setCurrentPhase('phase-4')} className="mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg bg-red-600 hover:bg-red-500 animate-pulse">Mentre litigate per l'Oasi...</button>
+                <button onClick={() => setCurrentPhase('emergency-story')} className="mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg bg-red-600 hover:bg-red-500 animate-pulse">
+                  Mentre litigate per l'Oasi...
+                </button>
               </div>
             )}
 
+          </div>
+        )}
+        
+{/* NUOVA FASE: La Cover Story dell'Emergenza */}
+        {currentPhase === 'emergency-story' && (
+          <div className="relative w-full max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[70vh] animate-in zoom-in duration-700">
+            <div className="bg-white p-10 sm:p-14 rounded-[3rem] shadow-2xl text-center space-y-8 border-4 border-red-500 relative overflow-hidden">
+               <div className="absolute top-0 left-0 w-full h-4 bg-red-500 animate-pulse"></div>
+               
+               <div className="text-8xl mb-2">🚨</div>
+               <h2 className="text-5xl font-black text-red-600 uppercase tracking-wider drop-shadow-sm">
+                 Allarme nell'Oasi!
+               </h2>
+               
+               <div className="bg-slate-50 p-8 rounded-3xl border-2 border-slate-200 text-left space-y-6">
+                 <p className="text-2xl text-slate-700 leading-relaxed font-medium">
+                   <strong>Bravissimi!</strong> I clan Arancione e Blu hanno raccolto tantissime bacche e insetti croccanti: ogni clan ha cibo a sufficienza!
+                 </p>
+                 <p className="text-2xl text-slate-700 leading-relaxed font-medium">
+                   Ma… <strong>che guaio!</strong> A furia di competere tra clan, l’Oasi è stata sfruttata troppo e l’acqua ha smesso di scorrere. E senza acqua nessun suricato può sopravvivere, neanche con la pancia piena!
+                 </p>
+                 <p className="text-2xl text-slate-700 leading-relaxed font-medium">
+                   Per fortuna gli antichi suricati avevano nascosto una riserva d’acqua di emergenza, chiusa da un antico lucchetto. Volevano insegnare ai giovani suricati che competere non è sempre la strada giusta.
+                 </p>
+                 <div className="bg-amber-100 p-6 rounded-2xl border-2 border-amber-300 transform rotate-1 shadow-sm mt-4">
+                   <p className="text-2xl text-amber-900 leading-relaxed font-black text-center uppercase tracking-wide">
+                     Per aprirlo serve una combinazione segreta… e l’hanno divisa tra i due clan!
+                   </p>
+                 </div>
+               </div>
+
+               <button 
+                 onClick={() => setCurrentPhase('phase-4')} 
+                 className="mt-8 px-12 py-5 text-white font-black rounded-full text-2xl shadow-lg bg-red-600 hover:bg-red-700 transition-transform hover:scale-105 active:scale-95"
+               >
+                 Troviamo la combinazione!
+               </button>
+            </div>
           </div>
         )}
 
@@ -942,13 +1232,13 @@ export default function App() {
 
                 <div className="bg-amber-100/50 p-6 rounded-2xl border-2 border-amber-900/20 max-w-2xl mx-auto">
                   <p className="text-amber-950 font-black uppercase tracking-widest mb-2 flex justify-center items-center gap-2"><span className="text-2xl">🗣️</span> La Catena dei Suricati</p>
-                  <p className="text-amber-900 font-medium">I frammenti sono stati mescolati e sparsi per l'aula! Chi ha il <strong>Pezzo N. 1</strong> inizia alzandosi in piedi e gridando la sua parola. Poi chi ha il N. 2 si alza e continua, e così via fino all'ultimo!</p>
+                  <p className="text-amber-900 font-medium">I frammenti sono stati mescolati e sparsi per l'aula! Chi ha il <strong>Pezzo N. 1</strong> inizia alzandosi in piedi e pronunciando la sua parola. Poi chi ha il N. 2 si alza e continua, e così via fino all'ultimo!</p>
                 </div>
 
                 <div className="mt-8 pt-4">
                   <p className="text-amber-800 font-bold uppercase tracking-widest mb-4">Il tuo Frammento (PC {pcNumber})</p>
                   <div className="flex justify-center">
-                    <div className={`py-8 px-10 shadow-lg border-y-4 border-amber-900/40 relative max-w-2xl ${team === 'arancioni' ? 'bg-gradient-to-r from-orange-100 to-teal-50 border-l-8 border-l-orange-500 rounded-r-[4rem] rounded-l-md border-r-4 border-r-teal-500/50' : 'bg-gradient-to-l from-teal-100 to-orange-50 border-r-8 border-r-teal-600 rounded-l-[4rem] rounded-r-md border-l-4 border-l-orange-500/50'}`}>
+                    <div className={`py-8 px-10 shadow-lg border-y-4 border-amber-900/40 relative max-w-2xl ${team === 'arancioni' ? 'bg-gradient-to-r from-orange-100 to-blue-50 border-l-8 border-l-orange-500 rounded-r-[4rem] rounded-l-md border-r-4 border-r-blue-500/50' : 'bg-gradient-to-l from-blue-100 to-orange-50 border-r-8 border-r-blue-600 rounded-l-[4rem] rounded-r-md border-l-4 border-l-orange-500/50'}`}>
                       <div className={`absolute top-1/2 -translate-y-1/2 text-2xl opacity-50 ${team === 'arancioni' ? '-right-4' : '-left-4'}`}>🧩</div>
                       <p className="text-xl font-bold text-amber-800/80 mb-2 uppercase tracking-widest">Pezzo N. {getClueForPc(pcNumber, totalPcs).logicalOrder}</p>
                       <p className="text-3xl sm:text-5xl font-mono font-black text-amber-950 tracking-widest drop-shadow-sm">{getClueForPc(pcNumber, totalPcs).text}</p>
@@ -981,7 +1271,7 @@ export default function App() {
                 L'Oasi è Salva!
               </h2>
               
-              <div className="bg-gradient-to-r from-orange-50 via-slate-50 to-teal-50 p-10 sm:p-14 rounded-[3rem] border-4 border-slate-200 shadow-xl">
+              <div className="bg-gradient-to-r from-orange-50 via-slate-50 to-blue-50 p-10 sm:p-14 rounded-[3rem] border-4 border-slate-200 shadow-xl">
                 <p className="text-3xl sm:text-4xl font-serif font-black text-slate-800 leading-relaxed uppercase tracking-wide">
                   "{MASTER_WORDS.join(" ")}"
                 </p>
